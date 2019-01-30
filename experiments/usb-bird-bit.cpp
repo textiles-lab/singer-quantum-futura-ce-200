@@ -7,18 +7,38 @@
 #include <unistd.h>
 #include <libusb.h>
 
+#include "send-path.hpp"
+
+std::vector< uint8_t > to_data(std::string const &data_in) {
+	std::vector< uint8_t > data;
+	//make data string into bytes:
+	bool high = true;
+	for (char c : data_in) {
+		if (isspace(c)) continue;
+		uint8_t val = 0;
+		if (c >= '0' && c <= '9') val = c - '0';
+		else if (c >= 'a' && c <= 'f') val = c - 'a' + 10;
+		else if (c >= 'A' && c <= 'F') val = c - 'A' + 10;
+		else {
+			assert(0 && " not hex(?)");
+		}
+		if (high) {
+			data.emplace_back(val * 0x10);
+			high = false;
+		} else {
+			data.back() |= val;
+			high = true;
+		}
+	}
+	assert(high == true && "must have even bytes");
+	return data;
+}
+
 std::string to_hex(uint16_t value) {
 	static char const *hex = "0123456789abcdef";
 	std::string ret;
 	ret += hex[(value / 16 / 16 / 16) % 16];
 	ret += hex[(value / 16 / 16) % 16];
-	ret += hex[(value / 16) % 16];
-	ret += hex[(value) % 16];
-	return ret;
-}
-std::string to_hex(uint8_t value) {
-	static char const *hex = "0123456789abcdef";
-	std::string ret;
 	ret += hex[(value / 16) % 16];
 	ret += hex[(value) % 16];
 	return ret;
@@ -220,21 +240,30 @@ int main(int argc, char **argv) {
 	}
 
 	{ //write some sort of path?
-		uint8_t data[129] =
-		"\xb9\x9c\x40\x00\x00"
-		"\x38\xff\x30\xff\xbd\xc6\x00\x00\x00\x41\xf7\x00\x00\x00\x00\xbf"
-		"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
-		"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
-		"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
-		"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
-		"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
-		"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
-		"\x00\x00\x00\x00\x00\x00\x00\x00\xba\x2f\x08";
+		std::vector< uint8_t > data = to_data(
+		"b9 9c 40 00 00 5c ff 0d ff f7 00 40 00 40 00 00 bf 04 04 00 00"
+		"40 00 00 5c ff 0d ff bf 00 00 00 00 00 00 00 00"
+		"00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+		"00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+		"00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+		"00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+		"00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+		"00 00 00 00 00 00 00 00 ba" // b1 09"
+		);
+
+		add_checksum(data);
+
+		for (auto d : data) {
+			std::cout << ' ' << to_hex(d);
+		}
+		std::cout << std::endl;
+
+		assert(data.size() == 128);
 
 		int transferred = 0;
 		int ret = libusb_bulk_transfer(dev,
 			0x01, //endpoint
-			data, //data
+			data.data(), //data
 			128, //length
 			&transferred, //transferred
 			1000 * 5//timeout

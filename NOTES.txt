@@ -87,6 +87,13 @@ b9 9c 40 00 00 38 ff 30 ff bd c6 00 00 00 41 f7 00 00 00 00 bf
 
 Here are versions in different spots:
 
+XX XX == ffff (big endian, so that's 0xffff) -> Right edge
+XX XX == b8 fe (big endian, so that's 0xfeb8) -> left edge
+(thus: 328 steps wide)
+
+YY YY == ffff (big endian, so that's 0xffff) -> Top edge
+YY YY == 1b fe (big endian, so that's 0xfe1b) -> left edge
+(thus: 484 steps tall)
 
                XX XX YY YY
 b9 9c 40 00 00 38 ff 30 ff bd c6 00 00 00 41 f7 00 00 00 00 bf <-- center
@@ -107,6 +114,10 @@ last part = checksum? blocks always end with it
  "bb" => next block to follow
 ... ba CK CK
 ... bb CK CK
+
+"f7 01 00 01 00" => finish path (with one or two needle downs after?)
+"bf 00 00 00 ... 00" => just ignore this stuff
+
 
 
 CENTER

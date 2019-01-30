@@ -27,6 +27,7 @@ The `send-path` utility reads (and sends to the machine) a whitespace-separated 
 
 Owing to limitations of the control protocol, paths must contain at least two needle-downs and subsequent positions may differ by no more than 63 machine units in either coordinate.
 
+Once send-path has sent the path to the machine, it will wait forever, dumping information about machine status codes.
 
 ## Communication Protocol
 

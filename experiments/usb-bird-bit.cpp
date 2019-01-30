@@ -7,7 +7,17 @@
 #include <unistd.h>
 #include <libusb.h>
 
-#include "send-path.hpp"
+
+inline void add_checksum(std::vector< uint8_t > &data) {
+	assert(data.size() == 126 && "must pass an un-checksummed packet");
+	uint16_t sum = 0;
+	for (uint8_t d : data) {
+		sum += uint16_t(d);
+	}
+	data.emplace_back(sum % 256);
+	data.emplace_back(sum / 256);
+	assert(data.size() == 128);
+};
 
 std::vector< uint8_t > to_data(std::string const &data_in) {
 	std::vector< uint8_t > data;

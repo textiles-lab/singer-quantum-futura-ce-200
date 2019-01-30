@@ -1,0 +1,229 @@
+I'd like to get these two Singer Quantum Futura CE 200 emboidery machines we have in the lab working with linux and OSX hosts. We have done this in the past by observing the USB communications they send to the host software and writing our own driver. I am going to attempt to duplicate this procedure, since that old code is no longer available to me.
+
+Method:
+- install usbpcap
+- run singer software to observe communications
+
+I'm going to try this on both a windows xp vm on my osx laptop and on a native windows xp laptop I happen to have from 10+ years ago.
+
+on TINYCHOW, a windows XP professional laptop:
+- insert singer software CD
+- installer automatically pops up
+- go through the prompts to install (I am pleased that this USB cdrom still works)
+- plug in machine, get add new hardware wizard for "CLEM", install that
+- start software, try to send a swan, things happen on machine!
+- now to try with usbpcap...
+
+on an XP virtual machine:
+- software seems to install fine
+- CLEM install seems to work
+- also sends to machine just fine(!!)
+- can I pcap on laptop? that would be so much easier
+- starting futura software with CLEM being usbpcap'd results in instant restart
+- starting machine transmition with CLEM being usbpcap'd results in instant restart
+- however, *can* start capture in the middle of a session, so I did that
+
+Okay, got some captures of various designs being slung around. Let's see if I can figure anything out.
+
+----
+
+Three types of things going on constantly:
+
+(1) host -> 1.2.0 -> host: URB_CONTROL in, almost constantly (polling machine status?)
+(2) 1.2.0 -> host: CLEAR FEATURE Status -- I guess this is part of a CONTROL transfer(?)
+(2) 1.2.2 -> host: URB_BULK in
+
+Some less common things:
+40-byte URB_BULK out from host with "COMPUCON" string,
+possibly with 37-byte URB_BULK in response with ver1.00.00 string?
+
+----
+
+For setup, we see:
+control 0x8e0d, request 0, read bulk to get "COMPUCON" string
+
+control 0x8f01, request 0, write "COMPUCON" string to endpoint 1, read 00 (?)
+control 0xf00a, request 0, read bulk to get "ver" string
+
+Then it reads 0x8601 r1 (no idea why).
+
+Looks like to sew a path, we see:
+
+control 0x0001, request 1, value len(path) (?)
+then bulk to endpoint 1 of the path data (?)
+
+-----
+
+Looks like handshake and 8601 request are both needed before path data 0x0001
+
+---- longer paths ----
+
+Checksum: appears to be sum of (unsigned) byte values, stored as a big-endian unsigned 16-bit number.
+(Figured this out using a "compute all these checksums please" web page [thanks, Chenxi!].)
+
+---- longer paths ----
+
+Looks to send in chunks:
+repeated many times:
+ control 0x0001, r1, value 0x180 <-- 0x100 is maybe "continue" bit?; 0x80 might be length (128) but I only see 128-sized packets
+ 128 bytes 
+finally:
+ control 0x0001, r1, value 0x80
+ 128 bytes
+
+
+Here are some example path parts:
+
+This is a complete path (11 stitches?):
+
+b9 9c 40 00 00 38 ff 30 ff bd c6 00 00 00 41 f7 00 00 00 00 bf
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 ba 2f 08
+
+Here are versions in different spots:
+
+XX XX == ffff (big endian, so that's 0xffff) -> Right edge
+XX XX == b8 fe (big endian, so that's 0xfeb8) -> left edge
+(thus: 328 steps wide)
+
+YY YY == ffff (big endian, so that's 0xffff) -> Top edge
+YY YY == 1b fe (big endian, so that's 0xfe1b) -> left edge
+(thus: 484 steps tall)
+
+               XX XX YY YY
+b9 9c 40 00 00 38 ff 30 ff bd c6 00 00 00 41 f7 00 00 00 00 bf <-- center
+b9 9c 40 00 00 c3 fe 27 fe bd c6 00 00 00 41 f7 00 00 00 00 bf <-- lower left
+b9 9c 40 00 00 f5 ff 26 fe bd c6 00 00 00 41 f7 00 00 00 00 bf <-- lower right
+b9 9c 40 00 00 c1 fe f5 ff bd c6 00 00 00 41 f7 00 00 00 00 bf <-- upper left
+b9 9c 40 00 00 f5 ff f5 ff bd c6 00 00 00 41 f7 00 00 00 00 bf <-- upper right
+b9 9c 40 00 00 44 ff 33 ff bd c6 00 00 45 41 45 42 45 41 45 41 <-- scaled
+
+
+//maybe looking at LE 16-bit starting point integers
+
+0xb9 = size field? blocks always start with it (121)
+
+last part = checksum? blocks always end with it
+
+ "ba" => finish
+ "bb" => next block to follow
+... ba CK CK
+... bb CK CK
+
+"f7 01 00 01 00" => finish path (with one or two needle downs after?)
+"bf 00 00 00 ... 00" => just ignore this stuff
+
+
+
+CENTER
+
+b9 9c 40 00 00 38 ff 30 ff bd c6 00 00 00 41 f7 00 00 00 00 bf
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 ba 2f 08
+
+LOWER LEFT
+
+b9 9c 40 00 00 c3 fe 27 fe bd c6 00 00 00 41 f7 00 00 00 00 bf
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 ba af 08
+
+
+LOWER RIGHT
+
+b9 9c 40 00 00 f5 ff 26 fe bd c6 00 00 00 41 f7 00 00 00 00 bf
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 ba e1 08
+
+
+UPPER LEFT
+
+b9 9c 40 00 00 c1 fe f5 ff bd c6 00 00 00 41 f7 00 00 00 00 bf
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 ba 7c 09
+
+
+UPPER RIGHT
+
+b9 9c 40 00 00 f5 ff f5 ff bd c6 00 00 00 41 f7 00 00 00 00 bf
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 ba b1 09
+
+SCALED ("26 stitches")
+
+b9 9c 40 00 00 44 ff 33 ff bd c6 00 00 45 41 45 42 45 41 45 41
+f4 00 00 00 00 be 00 00 00 00 bd e5 46 41 45 41
+05 42 06 42 ec 00 00 00 00 be 00 00 00 00 bd e6
+05 42 05 42 05 41 05 42 05 42 05 41 f4 00 00 00
+00 be 00 00 00 00 bd e5 06 42 05 42 41 00 00 41
+f7 00 00 00 00 bf 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 ba 60 18
+
+
+
+
+This is the first block of a path:
+
+b9 9c 40 00 00 99 ff 5d ff bd c5 00 00 45 43 44 44 44 45 44 45
+44 45 42 45 42 46 42 45 00 46 00 46 01 46 01 46
+02 46 01 46 02 45 02 45 03 46 02 45 03 45 03 46
+04 43 05 43 ec 00 00 00 00 be 00 00 00 00 bd e4
+06 41 05 00 08 43 07 41 07 41 06 41 03 43 43 43
+46 42 47 42 46 43 42 43 03 42 07 42 06 42 43 42
+46 41 46 41 47 00 48 00 47 00 47 00 47 00 48 41
+e5 00 00 00 00 be 00 00 bb 8b 1c
+
+Second block:
+
+b9 00 00 bd ed 47 01 47 00 47 00 47 41 ec 00 00 00 00 be 00 00
+00 00 bd e4 48 01 46 00 47 00 47 00 48 00 47 00
+42 42 06 44 00 44 42 42 05 43 08 41 08 00 08 00
+07 41 45 00 07 00 09 00 08 00 05 00 05 01 44 00
+48 00 49 00 49 00 47 41 e3 00 00 00 00 be 00 00
+00 00 bd db 49 01 4a 00 47 01 06 41 dc 00 00 00
+00 be 00 00 00 00 bd e4 08 01 09 00 08 00 08 00
+09 00 08 41 e3 00 00 00 bb ee 16
+
+(...)
+
+Last block:
+
+b9 00 00 00 00 bd c9 4f 04 01 00 43 41 08 41 47 00 41 43 00 41
+f7 00 00 00 00 bf 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 ba dc 06
+

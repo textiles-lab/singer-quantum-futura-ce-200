@@ -4,7 +4,7 @@ from math import sin, cos
 
 points = 300
 
-cx = 0xff00
+cx = 0xff80
 cy = 0xff00
 
 for i in range(0,points):

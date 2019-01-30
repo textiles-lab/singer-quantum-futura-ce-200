@@ -113,13 +113,18 @@ inline void send_path(libusb_device_handle *dev, std::vector< int32_t > const &x
 	data.emplace_back(start_y % 256); //start Y (big endian)
 	data.emplace_back(start_y / 256);
 
-	//0xbd 0xcX is a faster kind of path, but doesn't end cleanly(?)
-	data.emplace_back(0xf7);
+	//0xbd 0xcX is a faster kind of path(?), but doesn't end cleanly(?)
+	data.emplace_back(0xbd);
+	data.emplace_back(0xc6);
 
 	for (uint32_t i = 2; i + 1 < xys.size(); i += 2) {
 
 		assert(MinX <= xys[i] && xys[i] <= MaxX);
 		assert(MinY <= xys[i+1] && xys[i+1] <= MaxY);
+
+		if (i + 4 == xys.size() && i != 0) {
+			data.emplace_back(0xf7);
+		}
 
 		int32_t step_x = xys[i] - xys[i-2];
 		int32_t step_y = xys[i+1] - xys[i+1-2];

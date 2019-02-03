@@ -3,6 +3,7 @@
 #include <vector>
 #include <iostream>
 #include <string>
+#include <cassert>
 
 #include <libusb.h>
 
@@ -128,8 +129,8 @@ inline void send_path(libusb_device_handle *dev, std::vector< int32_t > const &x
 
 		int32_t step_x = xys[i] - xys[i-2];
 		int32_t step_y = xys[i+1] - xys[i+1-2];
-		assert(-0x3f <= step_x && step_x <= 0x3f);
-		assert(-0x3f <= step_y && step_y <= 0x3f);
+		assert(-0x1c <= step_x && step_x <= 0x1c);
+		assert(-0x1c <= step_y && step_y <= 0x1c);
 		if (step_x < 0) data.emplace_back(0x40 | -step_x);
 		else data.emplace_back(step_x);
 		if (step_y < 0) data.emplace_back(0x40 | -step_y);

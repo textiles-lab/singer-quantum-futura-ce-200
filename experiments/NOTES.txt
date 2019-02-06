@@ -230,3 +230,10 @@ f7 00 00 00 00 bf 00 00 00 00 00 00 00 00 00 00
 ========
 
 Is the maximum path value actually < 63 (despite that fitting?) Need to test.
+Largest stitch is actually 0x1c (!)
+
+
+Small hoop:
+
+X: 0xff1c to 0xffff
+Y: 0xfeaa to 0xffff

@@ -116,7 +116,7 @@ inline void send_path(libusb_device_handle *dev, std::vector< int32_t > const &x
 
 	//0xbd 0xcX is a faster kind of path(?), but doesn't end cleanly(?)
 	data.emplace_back(0xbd);
-	data.emplace_back(0xc6);
+	data.emplace_back(0xc2);
 
 	for (uint32_t i = 2; i + 1 < xys.size(); i += 2) {
 

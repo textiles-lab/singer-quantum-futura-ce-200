@@ -4,6 +4,12 @@
 #include <unistd.h>
 
 int main(int argc, char **argv) {
+
+	if (argc != 1) {
+		std::cerr << "Usage:\n\t./send-path < file\n (Send-path reads its input from stdin.)" << std::endl;
+		return 1;
+	}
+
 	std::vector< int32_t > xys;
 
 	{ // input list of xys:

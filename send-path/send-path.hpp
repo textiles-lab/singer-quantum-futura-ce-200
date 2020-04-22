@@ -200,7 +200,7 @@ inline void send_path(libusb_device_handle *dev, std::vector< int32_t > const &x
 		);
 		if (ret != 0) {
 			std::cerr << "WARNING: Failed to transfer packet, error " << ret << " == " << libusb_strerror((libusb_error)ret) << std::endl;
-		} else if (transferred != packet.size()) {
+		} else if ((size_t)transferred != packet.size()) {
 			std::cerr << "WARNING: Failed to transfer whole packet, just sent " << transferred << "." << std::endl;
 		}
 
